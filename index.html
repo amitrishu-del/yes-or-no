@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Yes or No?</title>
+<style>
+  :root {
+    --bg1: #fff4d6;
+    --bg2: #ffd9e8;
+    --ink: #3b2a5a;
+    --card: #ffffff;
+    --yes: #2fbf71;
+    --yes-dark: #1f8f52;
+    --no: #ff5a5f;
+    --no-dark: #c9393e;
+    --accent: #7b5cff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Chalkboard SE", "Comic Sans MS", "Baloo 2", system-ui, sans-serif;
+    color: var(--ink);
+    background: linear-gradient(160deg, var(--bg1), var(--bg2));
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; padding: 16px; }
+  .screen.active { display: flex; }
+
+  /* ---------- Menu ---------- */
+  #menu { justify-content: center; gap: 20px; overflow-y: auto; }
+  #menu h1 { font-size: clamp(40px, 8vw, 72px); margin: 0; text-align: center; }
+  #menu h1 .y { color: var(--yes); } #menu h1 .n { color: var(--no); }
+  #menu p { margin: 0; font-size: 22px; opacity: .8; }
+  .cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; width: min(900px, 100%); }
+  .cat {
+    border: none; border-radius: 24px; background: var(--card); padding: 14px 8px;
+    font: inherit; font-size: 22px; color: var(--ink); cursor: pointer;
+    box-shadow: 0 6px 0 rgba(59,42,90,.15); transition: transform .1s;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .cat .icon { font-size: 54px; line-height: 1; height: 60px; display: flex; align-items: center; }
+  .cat .icon svg { width: 56px; height: 56px; }
+  .cat:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(59,42,90,.15); }
+  .cat.all { background: var(--accent); color: #fff; }
+
+  /* ---------- Game ---------- */
+  #game { justify-content: space-between; gap: 10px; }
+  .topbar { width: 100%; max-width: 900px; display: flex; justify-content: space-between; align-items: center; }
+  .round-btn {
+    width: 60px; height: 60px; border-radius: 50%; border: none; background: var(--card);
+    font-size: 30px; cursor: pointer; box-shadow: 0 4px 0 rgba(59,42,90,.15);
+  }
+  .stars { font-size: 30px; letter-spacing: 2px; min-height: 40px; text-align: center; flex: 1; }
+  .stars .empty { opacity: .2; filter: grayscale(1); }
+
+  .card {
+    background: var(--card); border-radius: 36px; width: min(420px, 80vw); aspect-ratio: 1;
+    max-height: 42vh; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 0 rgba(59,42,90,.12); position: relative;
+  }
+  .card .pic { font-size: min(200px, 28vh); line-height: 1; display: flex; align-items: center; justify-content: center; width: 80%; height: 80%; }
+  .card .pic svg { width: 100%; height: 100%; }
+  .card.pop { animation: pop .45s ease; }
+  .card.shake { animation: shake .5s ease; }
+  @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.06) } 100% { transform: scale(1); opacity: 1 } }
+  @keyframes shake { 0%,100% { transform: translateX(0) } 20%,60% { transform: translateX(-14px) } 40%,80% { transform: translateX(14px) } }
+
+  .question { font-size: clamp(30px, 6vw, 52px); text-align: center; margin: 0; min-height: 1.3em; }
+  .question b { color: var(--accent); }
+  .feedback { font-size: clamp(26px, 5vw, 44px); min-height: 1.3em; margin: 0; text-align: center; font-weight: bold; }
+  .feedback.good { color: var(--yes-dark); }
+  .feedback.bad { color: var(--no-dark); }
+
+  .answers { display: flex; gap: 24px; width: 100%; max-width: 700px; justify-content: center; padding-bottom: 8px; }
+  .ans {
+    flex: 1; max-width: 300px; height: min(150px, 20vh); border: none; border-radius: 32px;
+    font: inherit; font-size: clamp(32px, 6vw, 52px); font-weight: bold; color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    transition: transform .1s, filter .2s;
+  }
+  .ans .big { font-size: 1.3em; }
+  #yesBtn { background: var(--yes); box-shadow: 0 10px 0 var(--yes-dark); }
+  #noBtn { background: var(--no); box-shadow: 0 10px 0 var(--no-dark); }
+  .ans:active { transform: translateY(8px); box-shadow: 0 2px 0 rgba(0,0,0,.2) !important; }
+  .ans:disabled { filter: grayscale(.6) opacity(.6); cursor: default; }
+
+  /* ---------- End ---------- */
+  #end { justify-content: center; gap: 24px; text-align: center; }
+  #end h2 { font-size: clamp(40px, 8vw, 64px); margin: 0; }
+  #end .final { font-size: 44px; }
+  .pill {
+    border: none; border-radius: 999px; padding: 18px 40px; font: inherit; font-size: 30px; cursor: pointer;
+    color: #fff; background: var(--accent); box-shadow: 0 6px 0 #5639cc;
+  }
+  .pill.alt { background: var(--card); color: var(--ink); box-shadow: 0 6px 0 rgba(59,42,90,.15); }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+  /* ---------- Confetti ---------- */
+  .confetti { position: fixed; top: -40px; font-size: 32px; pointer-events: none; animation: fall linear forwards; z-index: 10; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+</style>
+</head>
+<body>
+
+<!-- Menu -->
+<section id="menu" class="screen active">
+  <h1><span class="y">Yes</span> or <span class="n">No</span>?</h1>
+  <p>Pick a game!</p>
+  <div class="cats" id="cats"></div>
+</section>
+
+<!-- Game -->
+<section id="game" class="screen">
+  <div class="topbar">
+    <button class="round-btn" id="homeBtn" aria-label="Home">🏠</button>
+    <div class="stars" id="stars"></div>
+    <button class="round-btn" id="sayBtn" aria-label="Say again">🔊</button>
+  </div>
+  <div class="card" id="card"><div class="pic" id="pic"></div></div>
+  <p class="question" id="question"></p>
+  <p class="feedback" id="feedback"></p>
+  <div class="answers">
+    <button class="ans" id="yesBtn"><span class="big">👍</span> YES</button>
+    <button class="ans" id="noBtn"><span class="big">👎</span> NO</button>
+  </div>
+</section>
+
+<!-- End of round -->
+<section id="end" class="screen">
+  <h2>Great job! 🎉</h2>
+  <div class="final" id="finalStars"></div>
+  <div class="row">
+    <button class="pill" id="againBtn">Play again</button>
+    <button class="pill alt" id="menuBtn">🏠 Menu</button>
+  </div>
+</section>
+
+<script>
+/* =========================================================
+   Pictures that need drawing (planets, shapes, colours)
+   ========================================================= */
+function planetSVG(stops, opts = {}) {
+  const id = 'g' + Math.random().toString(36).slice(2, 8);
+  const grad = stops.map((c, i) => `<stop offset="${(i / (stops.length - 1)) * 100}%" stop-color="${c}"/>`).join('');
+  const r = opts.r || 70;
+  let extra = '';
+  if (opts.bands) {
+    extra += opts.bands.map(([y, h, c]) => `<rect x="0" y="${y}" width="200" height="${h}" fill="${c}" opacity=".55" clip-path="url(#c${id})"/>`).join('');
+  }
+  if (opts.spot) extra += `<ellipse cx="${opts.spot[0]}" cy="${opts.spot[1]}" rx="16" ry="10" fill="${opts.spot[2]}" clip-path="url(#c${id})"/>`;
+  if (opts.craters) extra += opts.craters.map(([x, y, s]) => `<circle cx="${x}" cy="${y}" r="${s}" fill="#000" opacity=".12"/>`).join('');
+  if (opts.land) extra += `<path d="M60 70 q20 -25 40 -5 t30 10 q-10 25 -30 15 t-40 -20z M90 130 q25 -10 40 5 q-5 20 -25 18 t-15 -23z" fill="#3fa34d" clip-path="url(#c${id})"/>`;
+  const ringBack = opts.ring ? `<ellipse cx="100" cy="100" rx="98" ry="24" fill="none" stroke="#d9c38f" stroke-width="10" opacity=".9" transform="rotate(-18 100 100)"/>` : '';
+  const ringFront = opts.ring ? `<path d="M2 100 a98 24 0 0 0 196 0" fill="none" stroke="#e8d5a3" stroke-width="10" transform="rotate(-18 100 100)"/>` : '';
+  const glow = opts.glow ? `<circle cx="100" cy="100" r="${r + 18}" fill="${opts.glow}" opacity=".35"/>` : '';
+  return `<svg viewBox="0 0 200 200">
+    <defs>
+      <radialGradient id="${id}" cx="35%" cy="35%" r="75%">${grad}</radialGradient>
+      <clipPath id="c${id}"><circle cx="100" cy="100" r="${r}"/></clipPath>
+    </defs>
+    ${glow}${ringBack}
+    <circle cx="100" cy="100" r="${r}" fill="url(#${id})"/>
+    ${extra}${ringFront}
+  </svg>`;
+}
+
+const SHAPE_FILL = '#7b5cff';
+function shapeSVG(inner) { return `<svg viewBox="0 0 200 200">${inner}</svg>`; }
+function poly(n, r = 80, rot = -90) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (rot + (360 / n) * i) * Math.PI / 180;
+    pts.push((100 + r * Math.cos(a)).toFixed(1) + ',' + (100 + r * Math.sin(a)).toFixed(1));
+  }
+  return `<polygon points="${pts.join(' ')}" fill="${SHAPE_FILL}"/>`;
+}
+function starPts() {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 36 : 85, a = (-90 + 36 * i) * Math.PI / 180;
+    pts.push((100 + r * Math.cos(a)).toFixed(1) + ',' + (105 + r * Math.sin(a)).toFixed(1));
+  }
+  return `<polygon points="${pts.join(' ')}" fill="#ffb800"/>`;
+}
+
+function blobSVG(color) {
+  const stroke = color === '#ffffff' ? 'stroke="#c9c2d6" stroke-width="4"' : '';
+  return `<svg viewBox="0 0 200 200"><path ${stroke} fill="${color}" d="M100 18 C150 14 186 52 182 100 C179 150 146 184 98 182 C50 180 16 148 20 98 C23 52 52 22 100 18Z"/></svg>`;
+}
+
+/* =========================================================
+   Categories. Each item: pic (emoji or svg), say (how it is named)
+   ========================================================= */
+const CATEGORIES = [
+  { key: 'things', name: 'Things', icon: '🧸', ask: s => `Is it ${s}?`, items: [
+    ['⚽', 'a ball'], ['🚗', 'a car'], ['🏠', 'a house'], ['🪑', 'a chair'], ['🛏️', 'a bed'],
+    ['📱', 'a phone'], ['⏰', 'a clock'], ['🔑', 'a key'], ['👟', 'a shoe'], ['☂️', 'an umbrella'],
+    ['📚', 'a book'], ['✏️', 'a pencil'], ['🥄', 'a spoon'], ['🪥', 'a toothbrush'], ['🎈', 'a balloon'],
+    ['☕', 'a cup'], ['👓', 'glasses'], ['🧦', 'socks'], ['🎒', 'a school bag'], ['💡', 'a light bulb'],
+    ['🧸', 'a teddy bear'], ['✂️', 'scissors'], ['🧢', 'a cap'], ['🕯️', 'a candle'],
+  ]},
+  { key: 'animals', name: 'Animals', icon: '🐶', ask: s => `Is it ${s}?`, items: [
+    ['🐶', 'a dog'], ['🐱', 'a cat'], ['🐘', 'an elephant'], ['🦁', 'a lion'], ['🐯', 'a tiger'],
+    ['🐒', 'a monkey'], ['🐄', 'a cow'], ['🐎', 'a horse'], ['🐟', 'a fish'], ['🐦', 'a bird'],
+    ['🐸', 'a frog'], ['🐢', 'a turtle'], ['🐰', 'a rabbit'], ['🐻', 'a bear'], ['🦒', 'a giraffe'],
+    ['🐧', 'a penguin'], ['🦋', 'a butterfly'], ['🐍', 'a snake'], ['🦆', 'a duck'], ['🐑', 'a sheep'],
+    ['🐷', 'a pig'], ['🐔', 'a hen'], ['🦓', 'a zebra'], ['🐊', 'a crocodile'], ['🦉', 'an owl'],
+  ]},
+  { key: 'food', name: 'Fruits & Food', icon: '🍎', ask: s => `Is it ${s}?`, items: [
+    ['🍎', 'an apple'], ['🍌', 'a banana'], ['🍇', 'grapes'], ['🍊', 'an orange'], ['🍉', 'a watermelon'],
+    ['🍓', 'a strawberry'], ['🥭', 'a mango'], ['🍍', 'a pineapple'], ['🥕', 'a carrot'], ['🍅', 'a tomato'],
+    ['🌽', 'corn'], ['🥚', 'an egg'], ['🍞', 'bread'], ['🧀', 'cheese'], ['🍦', 'an ice cream'],
+    ['🍪', 'a cookie'], ['🎂', 'a cake'], ['🍕', 'a pizza'], ['🥛', 'milk'], ['🥥', 'a coconut'],
+  ]},
+  { key: 'vehicles', name: 'Vehicles', icon: '🚂', ask: s => `Is it ${s}?`, items: [
+    ['🚗', 'a car'], ['🚌', 'a bus'], ['🚂', 'a train'], ['✈️', 'an aeroplane'], ['🚲', 'a bicycle'],
+    ['🚁', 'a helicopter'], ['🚀', 'a rocket'], ['⛵', 'a boat'], ['🚒', 'a fire truck'], ['🚑', 'an ambulance'],
+    ['🚓', 'a police car'], ['🏍️', 'a motorbike'], ['🚜', 'a tractor'], ['🛺', 'an auto rickshaw'], ['🚚', 'a truck'],
+  ]},
+  { key: 'colors', name: 'Colours', icon: '🎨', ask: s => `Is it ${s}?`, items: [
+    [blobSVG('#e53935'), 'red'], [blobSVG('#1e63e9'), 'blue'], [blobSVG('#2fb344'), 'green'],
+    [blobSVG('#ffd400'), 'yellow'], [blobSVG('#ff8a00'), 'orange'], [blobSVG('#8e3fd6'), 'purple'],
+    [blobSVG('#ff6fb5'), 'pink'], [blobSVG('#8b5a2b'), 'brown'], [blobSVG('#1d1d1d'), 'black'],
+    [blobSVG('#ffffff'), 'white'], [blobSVG('#9aa0a6'), 'grey'],
+  ]},
+  { key: 'shapes', name: 'Shapes', icon: shapeSVG(starPts()), ask: s => `Is it ${s}?`, items: [
+    [shapeSVG(`<circle cx="100" cy="100" r="80" fill="${SHAPE_FILL}"/>`), 'a circle'],
+    [shapeSVG(`<rect x="25" y="25" width="150" height="150" fill="${SHAPE_FILL}"/>`), 'a square'],
+    [shapeSVG(poly(3, 88, -90).replace('<polygon', '<polygon transform="translate(0 14)"')), 'a triangle'],
+    [shapeSVG(`<rect x="10" y="50" width="180" height="100" fill="${SHAPE_FILL}"/>`), 'a rectangle'],
+    [shapeSVG(`<ellipse cx="100" cy="100" rx="90" ry="58" fill="${SHAPE_FILL}"/>`), 'an oval'],
+    [shapeSVG(starPts()), 'a star'],
+    [shapeSVG(`<path d="M100 175 C20 120 10 70 45 45 C70 28 95 40 100 62 C105 40 130 28 155 45 C190 70 180 120 100 175Z" fill="#ff4f7b"/>`), 'a heart'],
+    [shapeSVG(poly(4, 88, -90)), 'a diamond'],
+    [shapeSVG(poly(5, 85, -90)), 'a pentagon'],
+    [shapeSVG(poly(6, 85, 0)), 'a hexagon'],
+  ]},
+  { key: 'space', name: 'Space', icon: '🪐', ask: s => `Is it ${s}?`, items: [
+    [planetSVG(['#fff7a8', '#ffcc00', '#ff8800'], { r: 66, glow: '#ffb700' }), 'the Sun'],
+    [planetSVG(['#f4f4f4', '#bdbdbd', '#8a8a8a'], { craters: [[75, 80, 12], [120, 115, 16], [95, 140, 8], [130, 70, 9]] }), 'the Moon'],
+    [planetSVG(['#f0d2b0', '#b98a5e', '#6b4a2e'], { craters: [[80, 85, 10], [125, 110, 12], [100, 145, 7]] }), 'Mercury'],
+    [planetSVG(['#fff1c4', '#e8b65a', '#a8702a']), 'Venus'],
+    [planetSVG(['#9fd6ff', '#2f7fd8', '#123f8a'], { land: true }), 'Earth'],
+    [planetSVG(['#ffb08a', '#d6532a', '#7a2410'], { craters: [[85, 90, 9], [120, 120, 7]] }), 'Mars'],
+    [planetSVG(['#fbe6c8', '#d8a878', '#8f5f38'], { bands: [[60, 10, '#a86b3c'], [85, 14, '#f5ddc0'], [112, 12, '#a86b3c'], [138, 8, '#c98c5a']], spot: [128, 122, '#c0502a'] }), 'Jupiter'],
+    [planetSVG(['#fff3cc', '#e6c983', '#a8874a'], { r: 52, ring: true, bands: [[85, 8, '#c9a865'], [108, 8, '#c9a865']] }), 'Saturn'],
+    [planetSVG(['#e2fbff', '#8fe0ea', '#3c9fb0']), 'Uranus'],
+    [planetSVG(['#a8c4ff', '#3a5fe0', '#16288a'], { bands: [[95, 6, '#6f8cff']] }), 'Neptune'],
+  ]},
+  { key: 'flags', name: 'Flags', icon: '🇮🇳', ask: s => `Is it the flag of ${s}?`, items: [
+    ['🇮🇳', 'India'], ['🇺🇸', 'America'], ['🇬🇧', 'the United Kingdom'],
+    ['🇯🇵', 'Japan'], ['🇨🇦', 'Canada'], ['🇫🇷', 'France'], ['🇩🇪', 'Germany'], ['🇧🇷', 'Brazil'],
+    ['🇦🇺', 'Australia'], ['🇨🇳', 'China'], ['🇮🇹', 'Italy'], ['🇳🇵', 'Nepal'], ['🇧🇩', 'Bangladesh'],
+    ['🇿🇦', 'South Africa'], ['🇰🇷', 'South Korea'], ['🇪🇸', 'Spain'],
+  ]},
+  { key: 'feelings', name: 'Feelings', icon: '😀', ask: s => `Is this face ${s}?`, items: [
+    ['😀', 'happy'], ['😢', 'sad'], ['😠', 'angry'], ['😨', 'scared'], ['😲', 'surprised'],
+    ['😴', 'sleepy'], ['😂', 'laughing'], ['🤒', 'sick'], ['😕', 'confused'], ['🥰', 'loving'],
+    ['😭', 'crying'], ['😋', 'hungry'],
+  ]},
+];
+CATEGORIES.forEach(c => { c.items = c.items.map(([pic, say]) => ({ pic, say, cat: c })); });
+
+/* =========================================================
+   Sound: synthesized chimes (no files needed)
+   ========================================================= */
+let audioCtx;
+function ctx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq, start, dur, type = 'sine', vol = 0.25) {
+  const ac = ctx(), o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, ac.currentTime + start);
+  g.gain.linearRampToValueAtTime(vol, ac.currentTime + start + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + start + dur);
+  o.connect(g).connect(ac.destination);
+  o.start(ac.currentTime + start); o.stop(ac.currentTime + start + dur + 0.05);
+}
+function winChime() {
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => { tone(f, i * 0.1, 0.5, 'triangle', 0.25); tone(f * 2, i * 0.1, 0.3, 'sine', 0.06); });
+  tone(1318.5, 0.42, 0.8, 'sine', 0.12);
+}
+function loseChime() {
+  const ac = ctx(), o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+  o.type = 'sawtooth'; f.type = 'lowpass'; f.frequency.value = 900;
+  const t = ac.currentTime;
+  o.frequency.setValueAtTime(392, t);
+  o.frequency.setValueAtTime(370, t + 0.28);
+  o.frequency.setValueAtTime(349, t + 0.56);
+  o.frequency.linearRampToValueAtTime(300, t + 1.1);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.18, t + 0.03);
+  g.gain.setValueAtTime(0.18, t + 0.9);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+  o.connect(f).connect(g).connect(ac.destination);
+  o.start(t); o.stop(t + 1.25);
+}
+
+/* =========================================================
+   Voice
+   ========================================================= */
+let voice = null;
+function pickVoice() {
+  const vs = speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
+  const prefer = ['Samantha', 'Karen', 'Moira', 'Tessa', 'Google UK English Female', 'Google US English', 'Rishi', 'Veena'];
+  voice = prefer.map(n => vs.find(v => v.name.includes(n))).find(Boolean) || vs[0] || null;
+}
+if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function say(text, onEnd) {
+  if (!('speechSynthesis' in window)) { onEnd && setTimeout(onEnd, 1200); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  if (voice) u.voice = voice;
+  u.rate = 0.9; u.pitch = 1.15;
+  let done = false;
+  const finish = () => { if (!done) { done = true; onEnd && onEnd(); } };
+  u.onend = finish;
+  // Safety net in case onend never fires
+  if (onEnd) setTimeout(finish, 1500 + text.length * 90);
+  speechSynthesis.speak(u);
+}
+
+/* =========================================================
+   Game
+   ========================================================= */
+const ROUND = 10;
+const $ = id => document.getElementById(id);
+const state = { pool: [], q: 0, results: [], shown: null, asked: null, locked: true, lastShown: null };
+
+function show(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(screen).classList.add('active');
+}
+
+function buildMenu() {
+  const wrap = $('cats');
+  const all = document.createElement('button');
+  all.className = 'cat all';
+  all.innerHTML = `<span class="icon">🌈</span>Everything`;
+  all.onclick = () => start(CATEGORIES);
+  CATEGORIES.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'cat';
+    b.innerHTML = `<span class="icon">${c.icon}</span>${c.name}`;
+    b.onclick = () => start([c]);
+    wrap.appendChild(b);
+  });
+  wrap.appendChild(all);
+}
+
+let lastCats = CATEGORIES;
+function start(cats) {
+  ctx(); // unlock audio on first tap
+  lastCats = cats;
+  state.pool = cats.flatMap(c => c.items);
+  state.q = 0; state.results = [];
+  show('game');
+  next();
+}
+
+function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function renderStars() {
+  let html = '';
+  for (let i = 0; i < ROUND; i++) {
+    const r = state.results[i];
+    html += r === undefined ? '<span class="empty">⭐</span>' : r ? '⭐' : '<span class="empty">⭐</span>';
+  }
+  $('stars').innerHTML = html;
+}
+
+function next() {
+  if (state.q >= ROUND) return finish();
+  // choose a picture (avoid showing the same thing twice in a row)
+  let item;
+  do { item = rand(state.pool); } while (state.pool.length > 1 && item === state.lastShown);
+  state.lastShown = item;
+  // half the time ask the true name, otherwise another item from the same category
+  let asked = item;
+  if (Math.random() < 0.5) {
+    const others = item.cat.items.filter(o => o.say !== item.say);
+    asked = rand(others);
+  }
+  state.shown = item; state.asked = asked;
+
+  const card = $('card');
+  $('pic').innerHTML = item.pic;
+  card.classList.remove('pop', 'shake'); void card.offsetWidth; card.classList.add('pop');
+  const qText = item.cat.ask(asked.say);
+  $('question').innerHTML = qText.replace(asked.say, `<b>${asked.say}</b>`);
+  $('feedback').textContent = ''; $('feedback').className = 'feedback';
+  renderStars();
+  setLocked(false);
+  say(qText);
+}
+
+function setLocked(v) { state.locked = v; $('yesBtn').disabled = v; $('noBtn').disabled = v; }
+
+function answer(saidYes) {
+  if (state.locked) return;
+  setLocked(true);
+  const truth = state.shown.say === state.asked.say;
+  const correct = saidYes === truth;
+  const cat = state.shown.cat;
+  const isFlag = cat.key === 'flags', isFeeling = cat.key === 'feelings';
+  const name = s => isFlag ? `the flag of ${s}` : s;
+  const itIs = isFeeling ? `The face is ${state.shown.say}.` : `It is ${name(state.shown.say)}.`;
+  const itIsNot = isFeeling ? `It is not ${state.asked.say}.` : `It is not ${name(state.asked.say)}.`;
+
+  state.results[state.q] = correct;
+  state.q++;
+  renderStars();
+
+  const fb = $('feedback');
+  let speech;
+  if (correct) {
+    winChime(); confetti();
+    fb.textContent = 'You are right! 🎉'; fb.className = 'feedback good';
+    speech = truth ? `You are right! ${itIs}` : `You are right! ${itIsNot} ${itIs}`;
+  } else {
+    loseChime();
+    const card = $('card'); card.classList.remove('pop', 'shake'); void card.offsetWidth; card.classList.add('shake');
+    fb.textContent = 'Oops! You are wrong.'; fb.className = 'feedback bad';
+    speech = `Oops! You are wrong. ${truth ? '' : itIsNot + ' '}${itIs}`;
+  }
+  // let the chime play, then speak, then move on
+  setTimeout(() => say(speech, () => setTimeout(next, 900)), correct ? 700 : 1100);
+}
+
+function finish() {
+  const n = state.results.filter(Boolean).length;
+  $('finalStars').innerHTML = `${'⭐'.repeat(n)}<br>${n} out of ${ROUND}`;
+  show('end');
+  winChime(); confetti(40);
+  say(n >= 8 ? `Wow! You got ${n} stars! Super star!` : n >= 5 ? `Well done! You got ${n} stars!` : `Good try! You got ${n} stars. Let's play again!`);
+}
+
+function confetti(count = 18) {
+  const bits = ['🎉', '⭐', '✨', '🎈', '💖', '🌟'];
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement('div');
+    s.className = 'confetti';
+    s.textContent = rand(bits);
+    s.style.left = Math.random() * 100 + 'vw';
+    s.style.animationDuration = 1.6 + Math.random() * 1.6 + 's';
+    s.style.animationDelay = Math.random() * 0.4 + 's';
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 4000);
+  }
+}
+
+$('yesBtn').onclick = () => answer(true);
+$('noBtn').onclick = () => answer(false);
+$('sayBtn').onclick = () => { if (!state.locked) say(state.shown.cat.ask(state.asked.say)); };
+$('homeBtn').onclick = () => { speechSynthesis.cancel(); setLocked(true); show('menu'); };
+$('againBtn').onclick = () => start(lastCats);
+$('menuBtn').onclick = () => show('menu');
+buildMenu();
+</script>
+</body>
+</html>
