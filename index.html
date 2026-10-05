@@ -412,19 +412,18 @@ function answer(saidYes) {
   renderStars();
 
   const fb = $('feedback');
-  let speech;
+  // Always say the true answer, so a right "No" is answered with "No!"
+  const word = truth ? 'Yes!' : 'No!';
   if (correct) {
     winChime(); confetti();
-    fb.textContent = 'Yes! 🎉'; fb.className = 'feedback good';
-    speech = 'Yes!';
+    fb.textContent = word + ' 🎉'; fb.className = 'feedback good';
   } else {
     loseChime();
     const card = $('card'); card.classList.remove('pop', 'shake'); void card.offsetWidth; card.classList.add('shake');
-    fb.textContent = 'No!'; fb.className = 'feedback bad';
-    speech = 'No!';
+    fb.textContent = word; fb.className = 'feedback bad';
   }
   // let the chime play, then speak, then move on
-  setTimeout(() => say(speech, () => setTimeout(next, 900)), correct ? 700 : 1100);
+  setTimeout(() => say(word, () => setTimeout(next, 900)), correct ? 700 : 1100);
 }
 
 function finish() {
