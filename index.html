@@ -407,12 +407,6 @@ function answer(saidYes) {
   setLocked(true);
   const truth = state.shown.say === state.asked.say;
   const correct = saidYes === truth;
-  const cat = state.shown.cat;
-  const isFlag = cat.key === 'flags', isFeeling = cat.key === 'feelings';
-  const name = s => isFlag ? `the flag of ${s}` : s;
-  const itIs = isFeeling ? `The face is ${state.shown.say}.` : `It is ${name(state.shown.say)}.`;
-  const itIsNot = isFeeling ? `It is not ${state.asked.say}.` : `It is not ${name(state.asked.say)}.`;
-
   state.results[state.q] = correct;
   state.q++;
   renderStars();
@@ -421,13 +415,13 @@ function answer(saidYes) {
   let speech;
   if (correct) {
     winChime(); confetti();
-    fb.textContent = 'You are right! 🎉'; fb.className = 'feedback good';
-    speech = truth ? `You are right! ${itIs}` : `You are right! ${itIsNot} ${itIs}`;
+    fb.textContent = 'Yes! 🎉'; fb.className = 'feedback good';
+    speech = 'Yes!';
   } else {
     loseChime();
     const card = $('card'); card.classList.remove('pop', 'shake'); void card.offsetWidth; card.classList.add('shake');
-    fb.textContent = 'Oops! You are wrong.'; fb.className = 'feedback bad';
-    speech = `Oops! You are wrong. ${truth ? '' : itIsNot + ' '}${itIs}`;
+    fb.textContent = 'No!'; fb.className = 'feedback bad';
+    speech = 'No!';
   }
   // let the chime play, then speak, then move on
   setTimeout(() => say(speech, () => setTimeout(next, 900)), correct ? 700 : 1100);
