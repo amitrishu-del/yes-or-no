@@ -86,6 +86,11 @@
   #noBtn { background: var(--no); box-shadow: 0 10px 0 var(--no-dark); }
   .ans:active { transform: translateY(8px); box-shadow: 0 2px 0 rgba(0,0,0,.2) !important; }
   .ans:disabled { filter: grayscale(.6) opacity(.6); cursor: default; }
+  .ans.hint, .ans.hint:disabled { filter: none; animation: hint .6s ease-in-out infinite alternate; }
+  @keyframes hint {
+    from { transform: scale(1); outline: 0 solid rgba(255, 215, 0, 0); }
+    to { transform: scale(1.08) translateY(-6px); outline: 10px solid rgba(255, 215, 0, .9); }
+  }
 
   /* ---------- End ---------- */
   #end { justify-content: center; gap: 24px; text-align: center; }
@@ -312,14 +317,17 @@ function pickVoice() {
   voice = prefer.map(n => vs.find(v => v.name.includes(n))).find(Boolean) || vs[0] || null;
 }
 if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+let speechGen = 0;
+function stopSpeech() { speechGen++; if ('speechSynthesis' in window) speechSynthesis.cancel(); }
 function say(text, onEnd) {
-  if (!('speechSynthesis' in window)) { onEnd && setTimeout(onEnd, 1200); return; }
+  const gen = ++speechGen;
+  if (!('speechSynthesis' in window)) { onEnd && setTimeout(() => gen === speechGen && onEnd(), 1200); return; }
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   if (voice) u.voice = voice;
   u.rate = 0.9; u.pitch = 1.15;
   let done = false;
-  const finish = () => { if (!done) { done = true; onEnd && onEnd(); } };
+  const finish = () => { if (!done && gen === speechGen) { done = true; onEnd && onEnd(); } };
   u.onend = finish;
   // Safety net in case onend never fires
   if (onEnd) setTimeout(finish, 1500 + text.length * 90);
@@ -331,7 +339,7 @@ function say(text, onEnd) {
    ========================================================= */
 const ROUND = 10;
 const $ = id => document.getElementById(id);
-const state = { pool: [], q: 0, results: [], shown: null, asked: null, locked: true, lastShown: null };
+const state = { plan: [], q: 0, results: [], shown: null, asked: null, locked: true, session: 0 };
 
 function show(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -358,13 +366,36 @@ let lastCats = CATEGORIES;
 function start(cats) {
   ctx(); // unlock audio on first tap
   lastCats = cats;
-  state.pool = cats.flatMap(c => c.items);
-  state.q = 0; state.results = [];
+  state.plan = makePlan(cats.flatMap(c => c.items));
+  state.q = 0; state.results = []; state.session++;
   show('game');
   next();
 }
 
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+// A round: ROUND different pictures, half "Yes" and half "No" questions,
+// never more than 3 of the same answer in a row.
+function makePlan(pool) {
+  let pics = shuffle(pool);
+  while (pics.length < ROUND) pics = pics.concat(shuffle(pool)); // only if a topic is very small
+  pics = pics.slice(0, ROUND);
+  const half = Math.floor(ROUND / 2);
+  const tooStreaky = a => a.some((v, i) => i >= 3 && v === a[i - 1] && v === a[i - 2] && v === a[i - 3]);
+  let answers;
+  do {
+    answers = shuffle(Array.from({ length: ROUND }, (_, i) => i < half));
+  } while (tooStreaky(answers));
+  return pics.map((item, i) => ({
+    item,
+    asked: answers[i] ? item : rand(item.cat.items.filter(o => o.say !== item.say)),
+  }));
+}
 
 function renderStars() {
   let html = '';
@@ -377,17 +408,9 @@ function renderStars() {
 
 function next() {
   if (state.q >= ROUND) return finish();
-  // choose a picture (avoid showing the same thing twice in a row)
-  let item;
-  do { item = rand(state.pool); } while (state.pool.length > 1 && item === state.lastShown);
-  state.lastShown = item;
-  // half the time ask the true name, otherwise another item from the same category
-  let asked = item;
-  if (Math.random() < 0.5) {
-    const others = item.cat.items.filter(o => o.say !== item.say);
-    asked = rand(others);
-  }
+  const { item, asked } = state.plan[state.q];
   state.shown = item; state.asked = asked;
+  $('yesBtn').classList.remove('hint'); $('noBtn').classList.remove('hint');
 
   const card = $('card');
   $('pic').innerHTML = item.pic;
@@ -396,8 +419,13 @@ function next() {
   $('question').innerHTML = qText.replace(asked.say, `<b>${asked.say}</b>`);
   $('feedback').textContent = ''; $('feedback').className = 'feedback';
   renderStars();
-  setLocked(false);
-  say(qText);
+  askQuestion();
+}
+
+// Buttons stay off until the question has been fully spoken
+function askQuestion() {
+  setLocked(true);
+  say(state.shown.cat.ask(state.asked.say), () => setLocked(false));
 }
 
 function setLocked(v) { state.locked = v; $('yesBtn').disabled = v; $('noBtn').disabled = v; }
@@ -421,9 +449,12 @@ function answer(saidYes) {
     loseChime();
     const card = $('card'); card.classList.remove('pop', 'shake'); void card.offsetWidth; card.classList.add('shake');
     fb.textContent = word; fb.className = 'feedback bad';
+    $(truth ? 'yesBtn' : 'noBtn').classList.add('hint');
   }
-  // let the chime play, then speak, then move on
-  setTimeout(() => say(word, () => setTimeout(next, 900)), correct ? 700 : 1100);
+  // let the chime play, then speak, then move on (unless he has gone back to the menu)
+  const session = state.session;
+  const later = (fn, ms) => setTimeout(() => session === state.session && fn(), ms);
+  later(() => say(word, () => later(next, correct ? 900 : 1600)), correct ? 700 : 1100);
 }
 
 function finish() {
@@ -450,8 +481,8 @@ function confetti(count = 18) {
 
 $('yesBtn').onclick = () => answer(true);
 $('noBtn').onclick = () => answer(false);
-$('sayBtn').onclick = () => { if (!state.locked) say(state.shown.cat.ask(state.asked.say)); };
-$('homeBtn').onclick = () => { speechSynthesis.cancel(); setLocked(true); show('menu'); };
+$('sayBtn').onclick = () => { if (!state.locked) askQuestion(); };
+$('homeBtn').onclick = () => { stopSpeech(); state.session++; setLocked(true); show('menu'); };
 $('againBtn').onclick = () => start(lastCats);
 $('menuBtn').onclick = () => show('menu');
 buildMenu();
